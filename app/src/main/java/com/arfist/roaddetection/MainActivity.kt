@@ -93,6 +93,20 @@ class MainActivity : AppCompatActivity() {
                     it.setSurfaceProvider(viewFinder.surfaceProvider)
                 }
 
+            // Analysis
+
+            val imageAnalysis = ImageAnalysis.Builder()
+                    .build()
+
+            imageAnalysis.setAnalyzer(cameraExecutor, { image ->
+                val rotationDegrees = image.imageInfo.rotationDegrees
+                // insert your code here.
+                Log.d("image","debug")
+                image.close()
+            })
+
+
+
             // Select back camera as a default
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
@@ -102,7 +116,7 @@ class MainActivity : AppCompatActivity() {
 
                 // Bind use cases to camera
                 cameraProvider.bindToLifecycle(
-                    this, cameraSelector, preview)
+                    this, cameraSelector, imageAnalysis , preview)
 
             } catch(exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
