@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.graphics.*
+import android.graphics.Rect
 import android.media.Image
 import android.os.Bundle
 import android.util.Log
@@ -17,11 +18,10 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
-import org.opencv.core.CvType
-import org.opencv.core.Mat
+import org.opencv.core.*
+import org.opencv.core.Point
 import org.opencv.imgproc.Imgproc
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -100,11 +100,12 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 var img_canny = img?.let { detectEdges(it) }
+                var img_roi = img_canny?.let { roi(it) }
 
                 // UI thread for update ImageView
                 runOnUiThread {
                     var imgview = findViewById<ImageView>(R.id.image_view)
-                    imgview.setImageBitmap(img_canny)
+                    imgview.setImageBitmap(img_roi)
                 }
                 imageproxy.close()
             })
@@ -151,12 +152,38 @@ class MainActivity : AppCompatActivity() {
     private fun detectEdges(bitmap: Bitmap): Bitmap? {
         val rgba = Mat()
         Utils.bitmapToMat(bitmap, rgba)
+        val gauss = Mat()
         val edges = Mat(rgba.size(), CvType.CV_8UC1)
-        Imgproc.cvtColor(rgba, edges, Imgproc.COLOR_RGB2GRAY, 4)
+        Imgproc.cvtColor(rgba, gauss, Imgproc.COLOR_RGB2GRAY, 4)
+        Imgproc.GaussianBlur(gauss,edges,Size(5.0,5.0),5.0,5.0)
         Imgproc.Canny(edges, edges, 80.0, 100.0)
         val resultBitmap = Bitmap.createBitmap(edges.cols(), edges.rows(), Bitmap.Config.ARGB_8888)
         Utils.matToBitmap(edges, resultBitmap)
         return resultBitmap
+    }
+
+    private fun roi(bitmap: Bitmap): Bitmap? {
+        val h = bitmap.height
+        val w = bitmap.width
+        var img = Mat()
+        Utils.bitmapToMat(bitmap,img)
+        Log.d("roi-img",img.width().toString() + ", " + img.height().toString() + ", " + img.type().toString())
+        var mask = Mat(img.height(),img.width(), CvType.CV_8UC4, Scalar(0.0,0.0,0.0))
+        Log.d("roi-mask",mask.width().toString() + ", " + mask.height().toString() + ", " + mask.type().toString())
+        var points: List<Point> = listOf<Point>(Point(w.toDouble(),0.0), Point(w.toDouble(),h.toDouble()),Point(w/2.0-20.0,(h/2.0)+150.0),Point(w/2.0-20.0,(h/2.0)-150.0) )
+        var mpoints = MatOfPoint()
+        mpoints.fromList(points)
+        var finalpoints = ArrayList<MatOfPoint>()
+        finalpoints.add(mpoints)
+        Imgproc.fillPoly(mask,finalpoints, Scalar( 255.0, 255.0, 255.0 ))
+        var dst = Mat()
+        Core.bitwise_and(img,mask,dst)
+        Log.d("roi-dst",dst.width().toString() + ", " + dst.height().toString() + ", " + dst.type().toString())
+        val resultBitmap = Bitmap.createBitmap(img.width(),img.height(), Bitmap.Config.RGB_565)
+        Log.d("roi-resultBitmap",resultBitmap.width.toString() + ", " + resultBitmap.height.toString())
+        Utils.matToBitmap(dst,resultBitmap)
+        return resultBitmap
+
     }
 
     companion object {
