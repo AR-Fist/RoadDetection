@@ -1,31 +1,33 @@
 package com.arfist.roaddetection
 
-import androidx.appcompat.app.AppCompatActivity
-import android.os.Bundle
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
-import android.net.Uri
+import android.graphics.*
+import android.media.Image
+import android.os.Bundle
 import android.util.Log
+import android.widget.ImageView
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import java.util.concurrent.Executors
-import androidx.camera.core.*
-import androidx.camera.lifecycle.ProcessCameraProvider
-import kotlinx.android.synthetic.main.activity_main.*
+import org.opencv.android.OpenCVLoader
+import org.opencv.android.Utils
+import org.opencv.core.CvType
+import org.opencv.core.Mat
+import org.opencv.imgproc.Imgproc
+import java.io.ByteArrayOutputStream
 import java.io.File
-import java.nio.ByteBuffer
-import java.text.SimpleDateFormat
-import java.util.*
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
-
-
-typealias LumaListener = (luma: Double) -> Unit
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var outputDirectory: File
     private lateinit var cameraExecutor: ExecutorService
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,26 +39,27 @@ class MainActivity : AppCompatActivity() {
             startCamera()
         } else {
             ActivityCompat.requestPermissions(
-                this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
+                    this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
         }
 
-        outputDirectory = getOutputDirectory()
+        // init OpenCV
+        if(OpenCVLoader.initDebug()) {
+            Log.i("OpenCV", "Load successfully")
+        }
+        else {
+            Log.e("OpenCV", "Load fail")
+        }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
-    private fun takePhoto() {}
-
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(
-            baseContext, it) == PackageManager.PERMISSION_GRANTED
+                baseContext, it) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun getOutputDirectory(): File {
-        val mediaDir = externalMediaDirs.firstOrNull()?.let {
-            File(it, resources.getString(R.string.app_name)).apply { mkdirs() } }
-        return if (mediaDir != null && mediaDir.exists())
-            mediaDir else filesDir
+    override fun onStart() {
+        super.onStart()
     }
 
     override fun onDestroy() {
@@ -64,21 +67,18 @@ class MainActivity : AppCompatActivity() {
         cameraExecutor.shutdown()
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<String>, grantResults:
-        IntArray) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
             if (allPermissionsGranted()) {
                 startCamera()
             } else {
-                Toast.makeText(this,
-                    "Permissions not granted by the user.",
-                    Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Permissions not granted by the user.", Toast.LENGTH_SHORT).show()
                 finish()
             }
         }
     }
 
+    @SuppressLint("UnsafeExperimentalUsageError")
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
@@ -86,25 +86,28 @@ class MainActivity : AppCompatActivity() {
             // Used to bind the lifecycle of cameras to the lifecycle owner
             val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
 
-            // Preview
-            val preview = Preview.Builder()
-                .build()
-                .also {
-                    it.setSurfaceProvider(viewFinder.surfaceProvider)
-                }
-
             // Analysis
-
             val imageAnalysis = ImageAnalysis.Builder()
                     .build()
 
-            imageAnalysis.setAnalyzer(cameraExecutor, { image ->
-                val rotationDegrees = image.imageInfo.rotationDegrees
-                // insert your code here.
-                Log.d("image","debug")
-                image.close()
-            })
+            imageAnalysis.setAnalyzer(cameraExecutor, { imageproxy ->
+                val rotationDegrees = imageproxy.imageInfo.rotationDegrees
 
+                // get image from image proxy
+                val img = imageproxy.image?.toBitmap()
+                if (img != null) {
+                    Log.d("Image", img.height.toString() + ", " + img.width.toString())
+                }
+
+                var img_canny = img?.let { detectEdges(it) }
+
+                // UI thread for update ImageView
+                runOnUiThread {
+                    var imgview = findViewById<ImageView>(R.id.image_view)
+                    imgview.setImageBitmap(img_canny)
+                }
+                imageproxy.close()
+            })
 
 
             // Select back camera as a default
@@ -115,14 +118,45 @@ class MainActivity : AppCompatActivity() {
                 cameraProvider.unbindAll()
 
                 // Bind use cases to camera
-                cameraProvider.bindToLifecycle(
-                    this, cameraSelector, imageAnalysis , preview)
+                cameraProvider.bindToLifecycle(this, cameraSelector, imageAnalysis)
 
-            } catch(exc: Exception) {
+            } catch (exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
 
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    // util method for converting Image to Bitmap
+    fun Image.toBitmap(): Bitmap {
+        val yBuffer = planes[0].buffer // Y
+        val vuBuffer = planes[2].buffer // VU
+
+        val ySize = yBuffer.remaining()
+        val vuSize = vuBuffer.remaining()
+
+        val nv21 = ByteArray(ySize + vuSize)
+
+        yBuffer.get(nv21, 0, ySize)
+        vuBuffer.get(nv21, ySize, vuSize)
+
+        val yuvImage = YuvImage(nv21, ImageFormat.NV21, this.width, this.height, null)
+        val out = ByteArrayOutputStream()
+        yuvImage.compressToJpeg(Rect(0, 0, yuvImage.width, yuvImage.height), 50, out)
+        val imageBytes = out.toByteArray()
+        return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+    }
+
+    // Perform edge detection
+    private fun detectEdges(bitmap: Bitmap): Bitmap? {
+        val rgba = Mat()
+        Utils.bitmapToMat(bitmap, rgba)
+        val edges = Mat(rgba.size(), CvType.CV_8UC1)
+        Imgproc.cvtColor(rgba, edges, Imgproc.COLOR_RGB2GRAY, 4)
+        Imgproc.Canny(edges, edges, 80.0, 100.0)
+        val resultBitmap = Bitmap.createBitmap(edges.cols(), edges.rows(), Bitmap.Config.ARGB_8888)
+        Utils.matToBitmap(edges, resultBitmap)
+        return resultBitmap
     }
 
     companion object {
