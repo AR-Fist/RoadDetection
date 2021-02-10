@@ -107,20 +107,24 @@ class MainActivity : AppCompatActivity() {
                 var lines = Mat()
                 var mat_roi_gray = Mat()
                 Imgproc.cvtColor(mat_roi, mat_roi_gray, Imgproc.COLOR_RGB2GRAY, 4)
-                Imgproc.HoughLinesP(mat_roi_gray, lines, 1.0, PI / 180.0, 5, 5.0, 75.0)
+                Imgproc.HoughLinesP(mat_roi_gray, lines, 1.0, PI / 180.0, 50, 30.0, 10.0)
 
 //                var resultMat = Mat()
                 var resultMat = mat_roi
 //                Utils.bitmapToMat(img, resultMat);
 
-                for (i in 0 until lines.cols()) {
-                    val points = lines[0, i]
+                Log.d("Houghlines",lines.rows().toString())
+
+                for (i in 0 until lines.rows()) {
+                    val points = lines[i, 0]
                     var x1 = points[0]
                     var y1 = points[1]
                     var x2 = points[2]
                     var y2 = points[3]
                     val Angle: Double = atan2(y2 - y1, x2 - x1) * 180.0 / PI
-                    if( ( -90.0 <= Angle && Angle <= -75.0) || (Angle in 75.0..90.0)) {
+
+                    // cut out some lines
+                    if( ( -90.0 <= Angle && Angle <= -60.0) || (Angle in 60.0..90.0)) {
                         continue
                     }
                     Log.d("Angle", Angle.toString())
