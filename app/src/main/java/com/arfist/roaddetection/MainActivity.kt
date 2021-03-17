@@ -124,6 +124,11 @@ class MainActivity : AppCompatActivity() {
                 var pt2 = left?.get(2)?.let { Point(it.toDouble(), left[3].toDouble()) }
                 //Drawing lines on an image
                 Imgproc.line(resultMat, pt1, pt2, Scalar(255.0, 0.0, 0.0), 2)
+                //Drawing dots
+                Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble(),0.0) },5,Scalar(0.0,255.0,0.0),5)
+                Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble(),img.height.toDouble()) },5,Scalar(0.0,255.0,0.0),5)
+                Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble()/2-20,img.height.toDouble()/2-150) },5,Scalar(255.0,0.0,255.0),5)
+                Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble()/2-20,img.height.toDouble()/2+150) },5,Scalar(255.0,0.0,255.0),5)
 
                 // plot right
                 var right = result_lines?.get(1)
@@ -227,10 +232,10 @@ class MainActivity : AppCompatActivity() {
         var right_n = 0
         for(i in 0 until lines.rows()) {
             val points = lines[i, 0]
-            var x1 = points[0]
-            var y1 = points[1]
-            var x2 = points[2]
-            var y2 = points[3]
+            val x1 = points[0]
+            val y1 = points[1]
+            val x2 = points[2]
+            val y2 = points[3]
 
             // cut out some lines
             val Angle: Double = atan2(y2 - y1, x2 - x1) * 180.0 / PI
@@ -239,8 +244,8 @@ class MainActivity : AppCompatActivity() {
             }
             Log.d("Angle", Angle.toString())
 
-            var slope = (y2-y1)/(x2-x1)
-            var intercept = y1 - (slope * x1)
+            val slope = (y2-y1)/(x2-x1)
+            val intercept = y1 - (slope * x1)
             Log.d("average_slope_intercept","slope: " + slope.toString() + ", intercept: " + intercept.toString())
             if(slope < 0) {
                 left_slope_mean += slope
@@ -257,18 +262,61 @@ class MainActivity : AppCompatActivity() {
         left_intercept_mean /= left_n
         right_slope_mean /= right_n
         right_intercept_mean /= right_n
-        var left_line = make_coor(bitmap,left_slope_mean,left_intercept_mean)
-        var right_line = make_coor(bitmap,right_slope_mean,right_intercept_mean)
-        return arrayListOf(left_line,right_line)
+        val leftLine = make_coor(bitmap,left_slope_mean,left_intercept_mean,"Left")
+        val rightLine = make_coor(bitmap,right_slope_mean,right_intercept_mean,"Right")
+        return arrayListOf(leftLine,rightLine)
     }
 
-    private fun make_coor(bitmap: Bitmap, slope: Double, intercept: Double): ArrayList<Int> {
-        var y1 = bitmap.width
-        var y2 = (y1 * (4/5))
-        var x1 = ((y1 - intercept) / slope).toInt()
-        var x2 = ((y2 - intercept) / slope).toInt()
+    private fun make_coor(bitmap: Bitmap, slope: Double, intercept: Double, side: String): ArrayList<Int> {
+        val h = bitmap.height
+        val w = bitmap.width
+        var roadLine = arrayListOf(0, 0, 0, 0)
 
-        return arrayListOf(x1, y1, x2, y2)
+        // Find intercept in trapezoid
+
+        val top_trapezoid_intersection = lineIntersection(slope,intercept, arrayListOf(w/2-20,h/2-150,w/2-20,h/2+150))
+        val bottom_trapezoid_intersection = lineIntersection(slope,intercept, arrayListOf(w,0,w,h))
+        val left_trapezoid_intersection = lineIntersection(slope,intercept, arrayListOf(w,0,w/2-20,h/2-150))
+        val right_trapezoid_intersection = lineIntersection(slope,intercept, arrayListOf(w/2-20,h/2+150,w,h))
+
+        if(top_trapezoid_intersection != Pair(-1,-1)) {
+            if(side == "Left") {
+                roadLine[0] = top_trapezoid_intersection.first
+                roadLine[1] = top_trapezoid_intersection.second
+            }
+            else {
+                roadLine[2] = top_trapezoid_intersection.first
+                roadLine[3] = top_trapezoid_intersection.second
+            }
+        }
+        if(bottom_trapezoid_intersection != Pair(-1,-1)) {
+            if(side == "Left") {
+                roadLine[2] = bottom_trapezoid_intersection.first
+                roadLine[3] = bottom_trapezoid_intersection.second
+            }
+            else {
+                roadLine[0] = bottom_trapezoid_intersection.first
+                roadLine[1] = bottom_trapezoid_intersection.second
+            }
+
+        }
+        return roadLine
+    }
+
+    private fun lineIntersection(line1_slope : Double, line1_intercept : Double , line2 : ArrayList<Int> ): Pair<Int, Int> {
+
+        // line1 from road line, line2 from trapezoid
+
+        val m2 = (line2[3]-line2[1])/(line2[2]-line2[0]+0.0001) // slope (divided by zero prevention)
+        val b2 = line2[1] - (m2 * line2[0]) // y-intercept
+        if(line1_slope == m2) {
+            return Pair(-1,-1) // parallel line
+        }
+        else {
+            val xi = (line1_intercept-b2) / (m2-line1_slope)
+            val yi = line1_slope * xi + line1_intercept
+            return Pair(xi.toInt(), yi.toInt())
+        }
     }
 
     companion object {
