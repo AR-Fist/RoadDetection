@@ -234,7 +234,7 @@ class MainActivity : AppCompatActivity() {
 
             // cut out some lines
             val Angle: Double = atan2(y2 - y1, x2 - x1) * 180.0 / PI
-            if( ( -90.0 <= Angle && Angle <= -60.0) || (Angle in 60.0..90.0)) {
+            if( ( -90.0 <= Angle && Angle <= -60.0) || (Angle in 60.0..90.0) || ( -10.0 <= Angle && Angle <= 10.0 ) ) {
                 continue
             }
             Log.d("Angle", Angle.toString())
