@@ -31,6 +31,10 @@ import kotlin.math.atan2
 class MainActivity : AppCompatActivity() {
 
     private lateinit var cameraExecutor: ExecutorService
+    private var cache_left_1 = Point(0.0,0.0)
+    private var cache_right_1 = Point(0.0,0.0)
+    private var cache_left_2 = Point(0.0,0.0)
+    private var cache_right_2 = Point(0.0,0.0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -109,21 +113,14 @@ class MainActivity : AppCompatActivity() {
                 Imgproc.cvtColor(mat_roi, mat_roi_gray, Imgproc.COLOR_RGB2GRAY, 4)
                 Imgproc.HoughLinesP(mat_roi_gray, lines, 1.0, PI / 180.0, 50, 30.0, 10.0)
 
-//                var resultMat = Mat()
-                var resultMat = mat_roi
-//                Utils.bitmapToMat(img, resultMat);
+                var resultMat = Mat()
+//                var resultMat = mat_roi
+                Utils.bitmapToMat(img, resultMat);
 
                 Log.d("Houghlines",lines.rows().toString())
 
                 var result_lines = img?.let { average_slope_intercept(it,lines) }
 
-                // plot left
-                var left = result_lines?.get(0)
-                Log.d("Left line (x1,y1,x2,y2)",left.toString())
-                var pt1 = left?.get(0)?.let { Point(it.toDouble(), left[1].toDouble()) }
-                var pt2 = left?.get(2)?.let { Point(it.toDouble(), left[3].toDouble()) }
-                //Drawing lines on an image
-                Imgproc.line(resultMat, pt1, pt2, Scalar(255.0, 0.0, 0.0), 2)
                 //Drawing dots
                 Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble(),0.0) },5,Scalar(0.0,255.0,0.0),5)
                 Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble(),img.height.toDouble()) },5,Scalar(0.0,255.0,0.0),5)
@@ -131,10 +128,106 @@ class MainActivity : AppCompatActivity() {
                 Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble()/2-20,img.height.toDouble()/2+150) },5,Scalar(255.0,0.0,255.0),5)
 
                 // plot right
-                var right = result_lines?.get(1)
+                var right = result_lines?.get(0)
                 Log.d("Right line (x1,y1,x2,y2)",right.toString())
-                pt1 = right?.get(0)?.let { Point(it.toDouble(), right[1].toDouble()) }
-                pt2 = right?.get(2)?.let { Point(it.toDouble(), right[3].toDouble()) }
+                var pt1 = right?.get(0)?.let { Point(it.toDouble(), right[1].toDouble()) }
+
+                if (pt1 == Point(0.0,0.0)) {
+                    if (img != null) {
+                        if (cache_right_1 == Point(0.0,0.0)) {
+                            pt1 = Point( img.width.toDouble()/2-20,img.height.toDouble()/2-150)
+                        }
+                        else {
+                            pt1 = cache_right_1
+                        }
+                    }
+                }
+                else {
+                    if (pt1 != null) {
+                        if (img != null) {
+                            pt1.y = (pt1.y + img.height.toDouble()/2-150) /2
+                        }
+                    }
+                }
+                if (pt1 != null) {
+                    cache_right_1 = pt1
+                }
+
+                var pt2 = right?.get(2)?.let { Point(it.toDouble(), right[3].toDouble()) }
+                if (pt2 == Point(0.0,0.0)) {
+                    if (img != null) {
+                        if (img != null) {
+                            if (cache_right_2 == Point(0.0,0.0)) {
+                                pt2 = Point( img.width.toDouble(),0.0)
+                            }
+                            else {
+                                pt2 = cache_right_2
+                            }
+                        }
+                    }
+                }
+                else {
+                    if (pt2 != null) {
+                        if (img != null) {
+                            pt2.y = (pt2.y) /2
+                        }
+                    }
+                }
+                if (pt2 != null) {
+                    cache_right_2 = pt2
+                }
+
+                //Drawing lines on an image
+                Imgproc.line(resultMat, pt1, pt2, Scalar(255.0, 0.0, 0.0), 2)
+
+                // plot left
+                var left = result_lines?.get(1)
+                Log.d("Left line (x1,y1,x2,y2)",left.toString())
+                pt1 = left?.get(0)?.let { Point(it.toDouble(), left[1].toDouble()) }
+
+                if (pt1 == Point(0.0,0.0)) {
+                    if (img != null) {
+                        if (cache_left_1 == Point(0.0,0.0)) {
+                            pt1 = Point( img.width.toDouble()/2-20,img.height.toDouble()/2+150)
+                        }
+                        else {
+                            pt1 = cache_left_1
+                        }
+                    }
+                }
+                else {
+                    if (pt1 != null) {
+                        if (img != null) {
+                            pt1.y = (pt1.y + img.height.toDouble()/2+150) /2
+                        }
+                    }
+                }
+                if (pt1 != null) {
+                    cache_left_1 = pt1
+                }
+
+                pt2 = left?.get(2)?.let { Point(it.toDouble(), left[3].toDouble()) }
+                if (pt2 == Point(0.0,0.0)) {
+                    if (img != null) {
+                        if (cache_left_2 == Point(0.0,0.0)) {
+                            pt2 = Point( img.width.toDouble(),img.height.toDouble())
+                        }
+                        else {
+                            pt2 = cache_left_2
+                        }
+                    }
+                }
+                else {
+                    if (pt2 != null) {
+                        if (img != null) {
+                            pt2.y = (pt2.y+img.height.toDouble()) /2
+                        }
+                    }
+                }
+                if (pt2 != null) {
+                    cache_left_2 = pt2
+                }
+
                 //Drawing lines on an image
                 Imgproc.line(resultMat, pt1, pt2, Scalar(255.0, 0.0, 0.0), 2)
 
