@@ -117,20 +117,24 @@ class MainActivity : AppCompatActivity() {
 //                var resultMat = mat_roi
                 Utils.bitmapToMat(img, resultMat);
 
-                Log.d("Houghlines",lines.rows().toString())
+//                Log.d("Houghlines",lines.rows().toString())
 
                 var result_lines = img?.let { average_slope_intercept(it,lines) }
 
                 //Drawing dots
                 Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble(),0.0) },5,Scalar(0.0,255.0,0.0),5)
-                Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble(),img.height.toDouble()) },5,Scalar(0.0,255.0,0.0),5)
-                Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble()/2-20,img.height.toDouble()/2-150) },5,Scalar(255.0,0.0,255.0),5)
+                Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble(),img.height.toDouble()) },5,Scalar(255.0,0.0,0.0),5)
+                Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble()/2-20,img.height.toDouble()/2-150) },5,Scalar(0.0,0.0,255.0),5)
                 Imgproc.circle(resultMat, img?.width?.let { Point(it.toDouble()/2-20,img.height.toDouble()/2+150) },5,Scalar(255.0,0.0,255.0),5)
 
                 // plot right
                 var right = result_lines?.get(0)
-                Log.d("Right line (x1,y1,x2,y2)",right.toString())
-                var pt1 = right?.get(0)?.let { Point(it.toDouble(), right[1].toDouble()) }
+                if (img != null) {
+                    if( right != arrayListOf(0,0,img.width,0)) {
+                        Log.d("Right line (x1,y1,x2,y2)", right.toString())
+                    }
+                }
+                var pt1 = right?.let { Point(it[0].toDouble(), it[1].toDouble()) }
 
                 if (pt1 == Point(0.0,0.0)) {
                     if (img != null) {
@@ -153,16 +157,14 @@ class MainActivity : AppCompatActivity() {
                     cache_right_1 = pt1
                 }
 
-                var pt2 = right?.get(2)?.let { Point(it.toDouble(), right[3].toDouble()) }
+                var pt2 = right?.let { Point(it[2].toDouble(), it[3].toDouble()) }
                 if (pt2 == Point(0.0,0.0)) {
                     if (img != null) {
-                        if (img != null) {
-                            if (cache_right_2 == Point(0.0,0.0)) {
-                                pt2 = Point( img.width.toDouble(),0.0)
-                            }
-                            else {
-                                pt2 = cache_right_2
-                            }
+                        if (cache_right_2 == Point(0.0,0.0)) {
+                            pt2 = Point( img.width.toDouble(),0.0)
+                        }
+                        else {
+                            pt2 = cache_right_2
                         }
                     }
                 }
@@ -176,19 +178,22 @@ class MainActivity : AppCompatActivity() {
                 if (pt2 != null) {
                     cache_right_2 = pt2
                 }
-
-                //Drawing lines on an image
-                Imgproc.line(resultMat, pt1, pt2, Scalar(255.0, 0.0, 0.0), 2)
+                //Keep right line for last check
+                if (pt1 != null && pt2 != null) {
+                    right = arrayListOf(pt1.x.toInt(),pt1.y.toInt(),pt2.x.toInt(),pt2.y.toInt())
+                }
 
                 // plot left
                 var left = result_lines?.get(1)
-                Log.d("Left line (x1,y1,x2,y2)",left.toString())
-                pt1 = left?.get(0)?.let { Point(it.toDouble(), left[1].toDouble()) }
+                if( left != arrayListOf(640,480,0,0)) {
+                    Log.d("Left line (x1,y1,x2,y2)",left.toString())
+                }
+                pt1 = left?.let { Point(it[0].toDouble(), it[1].toDouble()) }
 
                 if (pt1 == Point(0.0,0.0)) {
                     if (img != null) {
                         if (cache_left_1 == Point(0.0,0.0)) {
-                            pt1 = Point( img.width.toDouble()/2-20,img.height.toDouble()/2+150)
+                            pt1 = Point( img.width.toDouble(),img.height.toDouble())
                         }
                         else {
                             pt1 = cache_left_1
@@ -198,19 +203,18 @@ class MainActivity : AppCompatActivity() {
                 else {
                     if (pt1 != null) {
                         if (img != null) {
-                            pt1.y = (pt1.y + img.height.toDouble()/2+150) /2
+                            pt1.y = (pt1.y + img.height.toDouble()) /2
                         }
                     }
                 }
                 if (pt1 != null) {
                     cache_left_1 = pt1
                 }
-
-                pt2 = left?.get(2)?.let { Point(it.toDouble(), left[3].toDouble()) }
+                pt2 = left?.let { Point(it[2].toDouble(), it[3].toDouble()) }
                 if (pt2 == Point(0.0,0.0)) {
                     if (img != null) {
                         if (cache_left_2 == Point(0.0,0.0)) {
-                            pt2 = Point( img.width.toDouble(),img.height.toDouble())
+                            pt2 = Point( img.width.toDouble()/2-20,img.height.toDouble()/2+150)
                         }
                         else {
                             pt2 = cache_left_2
@@ -220,16 +224,29 @@ class MainActivity : AppCompatActivity() {
                 else {
                     if (pt2 != null) {
                         if (img != null) {
-                            pt2.y = (pt2.y+img.height.toDouble()) /2
+                            pt2.y = (pt2.y+img.height.toDouble()/2+150) /2
                         }
                     }
                 }
                 if (pt2 != null) {
                     cache_left_2 = pt2
                 }
+                //Keep left line for last check
+                if (pt1 != null && pt2 != null) {
+                    left = arrayListOf(pt1.x.toInt(),pt1.y.toInt(),pt2.x.toInt(),pt2.y.toInt())
+                }
+
+                // Check cross lines in ROI
+                if (left?.get(3)!! < right?.get(1)!!) {
+                    Log.d("Cross","line cross")
+                    val temp = left[3]
+                    left[3] = right[1]
+                    right[1] = temp
+                }
 
                 //Drawing lines on an image
-                Imgproc.line(resultMat, pt1, pt2, Scalar(255.0, 0.0, 0.0), 2)
+                Imgproc.line(resultMat, left?.let { Point(it[0].toDouble(),it[1].toDouble()) }, left?.let { Point(it[2].toDouble(),it[3].toDouble()) } , Scalar(255.0, 0.0, 0.0), 2)
+                Imgproc.line(resultMat, right?.let { Point(it[0].toDouble(),it[1].toDouble()) }, right?.let { Point(it[2].toDouble(),it[3].toDouble()) } , Scalar(255.0, 0.0, 0.0), 2)
 
 
                 val resultBitmap = img?.copy(Bitmap.Config.RGB_565, true)
@@ -301,9 +318,9 @@ class MainActivity : AppCompatActivity() {
         val w = bitmap.width
         var img = Mat()
         Utils.bitmapToMat(bitmap, img)
-        Log.d("ROI", "img >> "+ img.width().toString() + ", " + img.height().toString() + ", " + img.type().toString())
+//        Log.d("ROI", "img >> "+ img.width().toString() + ", " + img.height().toString() + ", " + img.type().toString())
         var mask = Mat(img.height(), img.width(), CvType.CV_8UC4, Scalar(0.0, 0.0, 0.0))
-        Log.d("ROI", "mask >> "+ mask.width().toString() + ", " + mask.height().toString() + ", " + mask.type().toString())
+//        Log.d("ROI", "mask >> "+ mask.width().toString() + ", " + mask.height().toString() + ", " + mask.type().toString())
         var points: List<Point> = listOf<Point>(Point(w.toDouble(), 0.0), Point(w.toDouble(), h.toDouble()), Point(w / 2.0 - 20.0, (h / 2.0) + 150.0), Point(w / 2.0 - 20.0, (h / 2.0) - 150.0))
         var mpoints = MatOfPoint()
         mpoints.fromList(points)
@@ -312,7 +329,7 @@ class MainActivity : AppCompatActivity() {
         Imgproc.fillPoly(mask, finalpoints, Scalar(255.0, 255.0, 255.0))
         var dst = Mat()
         Core.bitwise_and(img, mask, dst)
-        Log.d("ROI", "dst >> "+ dst.width().toString() + ", " + dst.height().toString() + ", " + dst.type().toString())
+//        Log.d("ROI", "dst >> "+ dst.width().toString() + ", " + dst.height().toString() + ", " + dst.type().toString())
         return dst
     }
 
@@ -369,8 +386,8 @@ class MainActivity : AppCompatActivity() {
 
         val top_trapezoid_intersection = lineIntersection(slope,intercept, arrayListOf(w/2-20,h/2-150,w/2-20,h/2+150))
         val bottom_trapezoid_intersection = lineIntersection(slope,intercept, arrayListOf(w,0,w,h))
-        val left_trapezoid_intersection = lineIntersection(slope,intercept, arrayListOf(w,0,w/2-20,h/2-150))
-        val right_trapezoid_intersection = lineIntersection(slope,intercept, arrayListOf(w/2-20,h/2+150,w,h))
+        val left_trapezoid_intersection = lineIntersection(slope,intercept, arrayListOf(w,h,w/2-20,h/2+150))
+        val right_trapezoid_intersection = lineIntersection(slope,intercept, arrayListOf(w/2-20,h/2-150,w,0))
 
         if(top_trapezoid_intersection != Pair(-1,-1)) {
             if(side == "Left") {
@@ -391,7 +408,18 @@ class MainActivity : AppCompatActivity() {
                 roadLine[0] = bottom_trapezoid_intersection.first
                 roadLine[1] = bottom_trapezoid_intersection.second
             }
-
+        }
+        if(left_trapezoid_intersection != Pair(-1,-1)) {
+            if(side == "Left") {
+                roadLine[2] = w
+                roadLine[3] = 0
+            }
+        }
+        if(right_trapezoid_intersection != Pair(-1,-1)) {
+            if(side == "Right") {
+                roadLine[0] = w
+                roadLine[1] = h
+            }
         }
         return roadLine
     }
